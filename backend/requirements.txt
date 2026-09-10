@@ -1,0 +1,10 @@
+# Pinned to 0.10.21: this is the last release that still ships the classic
+# `mediapipe.solutions` API (Hands + drawing_utils) that this project uses.
+# Versions 0.10.31+ removed `mediapipe.solutions` entirely in favour of the
+# newer Tasks API, which would require rewriting hand_detection.py.
+mediapipe==0.10.21
+opencv-python==5.0.0.93
+numpy==2.5.1
+flask
+Pillow
+

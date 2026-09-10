@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+	<meta name="description" content="Play Rock, Paper, Scissors against an adaptive AI using nothing but your webcam.">
+	<meta name="theme-color" content="#0b1220">
+	<title>Rock · Paper · Scissors AI</title>
+
+	<!-- Google Fonts (falls back gracefully to system fonts if offline) -->
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+	<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✊</text></svg>">
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<div id="app-shell">
+
+		<!-- ============ Header ============ -->
+		<header id="site-header">
+			<div id="title-block">
+				<h1><span class="logo-glyph">✊</span> RPS <span class="accent">AI</span></h1>
+				<p id="subtitle">Outsmart the machine — with your bare hands</p>
+			</div>
+			<div id="header-controls">
+				<button id="theme-btn" class="icon-btn" type="button" title="Toggle theme" aria-label="Toggle light/dark theme">🌙</button>
+				<button id="help-btn" class="icon-btn" type="button" title="How to play" aria-label="How to play">?</button>
+				<button id="mute-btn" class="icon-btn" type="button" title="Mute sound" aria-label="Toggle sound">🔊</button>
+			</div>
+		</header>
+
+		<!-- ============ How-to-play panel ============ -->
+		<div id="help-panel" hidden>
+			<div class="help-head">
+				<h2>How to Play</h2>
+				<button id="close-help-btn" class="icon-btn" type="button" aria-label="Close help">✕</button>
+			</div>
+			<div class="help-grid">
+				<div class="help-steps">
+					<ol>
+						<li>Click <strong>Start Webcam</strong> and allow camera access.</li>
+						<li>Hold up a <strong>Rock ✊</strong> so the game knows you're ready.</li>
+						<li><strong>Shake</strong> your rock up and down to begin the "Scissors, Paper, Rock!" countdown.</li>
+						<li>On the final beat ("Rock!"), show your real move — Rock, Paper, or Scissors.</li>
+						<li>Your detected move appears over your camera feed, the AI's move in its box — then see who won!</li>
+					</ol>
+					<p class="help-note">No webcam handy? Use the <strong>Quick Play</strong> buttons instead.</p>
+				</div>
+				<div class="help-difficulties">
+					<h3>AI Modes</h3>
+					<ul>
+						<li><strong>🧠 AI Predictive</strong> — blends frequency + Markov prediction with anti-counter play to exploit patterns in your moves.</li>
+						<li><strong>🎲 AI Random</strong> — plays uniformly at random (the game-theoretic Nash equilibrium — unbeatable in theory).</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+
+		<!-- ============ Main layout: arena (left) + dashboard (right) ============ -->
+		<main id="game-layout">
+
+			<!-- ===== Left column: the game itself ===== -->
+			<section id="arena-column">
+
+				<!-- Persistent status banner: live camera ticker when idle,
+				     BIG bold announcement during countdown / results. -->
+				<div id="status-banner" class="tone-info">
+					<span id="status-icon">👋</span>
+					<span id="status-text">Click "Start Webcam" to begin</span>
+				</div>
+
+				<!-- Player vs AI arena -->
+				<div id="player-ui">
+
+					<div id="player-box" class="arena-box">
+						<span class="arena-label">You</span>
+						<video id="webcam-feed" autoplay playsinline muted hidden></video>
+
+						<!-- MediaPipe hand-skeleton overlay, drawn by the backend -->
+						<div id="overlay-container"></div>
+
+						<!-- The player's thrown move, stamped over their own feed -->
+						<div id="player-move-overlay" hidden>
+							<span id="player-move-overlay-label">You played</span>
+							<span id="player-move-overlay-emoji">✊</span>
+						</div>
+
+						<div id="player-idle-placeholder" class="idle-placeholder">
+							<span class="idle-emoji">🎥</span>
+							<button id="start-webcam" type="button">Start Webcam</button>
+						</div>
+					</div>
+
+					<div id="vs-divider">VS</div>
+
+					<div id="ai-box" class="arena-box">
+						<span class="arena-label">AI</span>
+						<div id="ai-content">
+							<img src="resources/ai_hand.jpg" alt="AI is waiting" id="ai-placeholder">
+						</div>
+					</div>
+				</div>
+
+				<!-- Gesture ticker: lights up in sequence during the countdown,
+				     reflects the live detected gesture otherwise. -->
+				<div id="gesture-strip">
+					<div class="traffic-light" id="wait">
+						<div class="light"></div>
+						<div class="icon">⏳</div>
+						<div class="label">Wait</div>
+					</div>
+					<div class="traffic-light" id="scissors">
+						<div class="light"></div>
+						<div class="icon">✌️</div>
+						<div class="label">Scissors</div>
+					</div>
+					<div class="traffic-light" id="paper">
+						<div class="light"></div>
+						<div class="icon">✋</div>
+						<div class="label">Paper</div>
+					</div>
+					<div class="traffic-light" id="rock">
+						<div class="light"></div>
+						<div class="icon">✊</div>
+						<div class="label">Rock</div>
+					</div>
+				</div>
+
+				<!-- Secondary controls, shown once the webcam is running -->
+				<div id="game-controls" hidden>
+					<button id="stop-webcam" class="secondary-btn" type="button">⏹ Stop Webcam</button>
+					<button id="reset-match" class="secondary-btn" type="button">↺ Reset Match</button>
+				</div>
+
+				<!-- Manual "no camera required" controls -->
+				<div id="quick-play">
+					<p id="quick-play-label">Quick Play <span>— no camera? just click your move</span></p>
+					<div id="quick-play-buttons">
+						<button class="quick-play-btn" type="button" data-move="rock">✊ <span>Rock</span></button>
+						<button class="quick-play-btn" type="button" data-move="paper">✋ <span>Paper</span></button>
+						<button class="quick-play-btn" type="button" data-move="scissors">✌️ <span>Scissors</span></button>
+					</div>
+				</div>
+
+				<!-- Training review: shows the exact frame the final move was
+				     detected on, so the player can confirm or correct the
+				     label. Confirmed frames are saved as labelled training
+				     data for a future learned gesture classifier. -->
+				<div id="training-review" hidden>
+					<div class="training-info">
+						<img id="training-frame" alt="Captured frame of your final move">
+						<div class="training-text">
+							<p id="training-prompt">
+								Final move detected: <strong id="training-detected">✊ Rock</strong>
+							<span id="training-queue-badge" class="queue-badge" hidden><span id="training-queue-count">0</span> queued</span>
+							</p>
+							<p class="training-sub">
+								Was that right? Save this frame to teach the AI — or tap the move it actually was.
+							</p>
+						</div>
+					</div>
+					<div class="training-actions">
+						<button id="training-confirm" class="training-btn confirm" type="button">✓ Correct — Save</button>
+						<button class="training-btn relabel" type="button" data-label="rock" title="It was actually Rock">✊</button>
+						<button class="training-btn relabel" type="button" data-label="paper" title="It was actually Paper">✋</button>
+						<button class="training-btn relabel" type="button" data-label="scissors" title="It was actually Scissors">✌️</button>
+						<button id="training-skip" class="training-btn skip" type="button" title="Hand wasn't in frame / unclear — save as a negative example">🚫 No Move</button>
+					</div>
+				</div>
+
+				<!-- Previously saved frames are available in a small carousel. -->
+				<div id="training-carousel" hidden>
+					<div class="training-carousel-head">
+						<div>
+							<h3>Training Library</h3>
+							<p>Saved examples ready to reuse.</p>
+						</div>
+						<span id="training-carousel-count">0 frames</span>
+					</div>
+					<div class="training-carousel-row">
+						<button id="training-prev" class="carousel-btn" type="button" aria-label="Previous training frames">‹</button>
+						<div id="training-log" aria-live="polite" aria-label="Saved training frames"></div>
+						<button id="training-next" class="carousel-btn" type="button" aria-label="Next training frames">›</button>
+					</div>
+				</div>
+			</section>
+
+			<!-- ===== Right column: dashboard (score, difficulty, insight, history) ===== -->
+			<aside id="dashboard-column">
+
+				<!-- Scoreboard -->
+				<div id="top-stats">
+					<div id="player-wins" class="stat-box">
+						<span class="stat-icon">🧑</span>
+						<span class="stat-value">0</span>
+						<span class="stat-name">You</span>
+					</div>
+					<div id="game-count" class="stat-box">
+						<span class="stat-icon">🎮</span>
+						<span class="stat-value">0</span>
+						<span class="stat-name">Rounds</span>
+					</div>
+					<div id="ai-wins" class="stat-box">
+						<span class="stat-icon">🤖</span>
+						<span class="stat-value">0</span>
+						<span class="stat-name">AI</span>
+					</div>
+				</div>
+
+				<!-- Difficulty selector -->
+				<div id="difficulty-bar">
+					<span class="difficulty-label">AI Mode</span>
+					<div id="difficulty-buttons" role="group" aria-label="AI mode">
+						<button class="diff-btn active" type="button" data-difficulty="predictive">
+							<span class="diff-emoji">🧠</span><span class="diff-name">AI Predictive</span>
+						</button>
+						<button class="diff-btn" type="button" data-difficulty="random">
+							<span class="diff-emoji">🎲</span><span class="diff-name">AI Random</span>
+						</button>
+					</div>
+				</div>
+
+				<!-- AI insight -->
+				<div id="insight-column">
+					<h3>AI Insight</h3>
+					<div id="ai-insight-panel">
+						<div class="insight-row">
+							<span class="insight-key">Strategy</span>
+							<span class="insight-val" id="insight-strategy">—</span>
+						</div>
+						<div class="insight-row">
+							<span class="insight-key">Predicting you'll play</span>
+							<span class="insight-val" id="insight-prediction">—</span>
+						</div>
+						<div class="insight-row">
+							<span class="insight-key">Your win rate</span>
+							<span class="insight-val" id="insight-winrate">—</span>
+						</div>
+						<div class="insight-bars" id="insight-bars">
+							<div class="insight-bar-row" data-move="rock">
+								<span class="insight-bar-label">✊ Rock</span>
+								<div class="insight-bar-track"><div class="insight-bar-fill"></div></div>
+								<span class="insight-bar-pct">0%</span>
+							</div>
+							<div class="insight-bar-row" data-move="paper">
+								<span class="insight-bar-label">✋ Paper</span>
+								<div class="insight-bar-track"><div class="insight-bar-fill"></div></div>
+								<span class="insight-bar-pct">0%</span>
+							</div>
+							<div class="insight-bar-row" data-move="scissors">
+								<span class="insight-bar-label">✌️ Scissors</span>
+								<div class="insight-bar-track"><div class="insight-bar-fill"></div></div>
+								<span class="insight-bar-pct">0%</span>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Match history -->
+				<div id="history-column">
+					<h3>Match History</h3>
+					<div id="history-list" aria-live="polite">
+						<!-- dynamically populated by script.js -->
+					</div>
+				</div>
+			</aside>
+		</main>
+
+		<footer id="site-footer">
+			<p>Built with Flask, MediaPipe & a little bit of magic ✨ — <a href="https://github.com/Uncreeperble/RPS_AI" target="_blank" rel="noopener">View on GitHub</a></p>
+		</footer>
+	</div>
+
+	<script src="script.js"></script>
+</body>
+</html>
